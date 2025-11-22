@@ -1,2 +1,6 @@
 # Rust Theme Picker TUI
-Theme Picker written in Rust, for my custom Arch Linux theme
+Terminal based theme picker written in Rust.
+
+## Tech stack
+- Rust
+- Ratatui
