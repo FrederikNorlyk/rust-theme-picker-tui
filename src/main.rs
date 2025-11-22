@@ -1,150 +1,193 @@
+use ratatui::style::Color;
+use ratatui::{
+    DefaultTerminal,
+    buffer::Buffer,
+    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    layout::{Constraint, Layout, Rect},
+    style::{Modifier, Style, Stylize},
+    text::Line,
+    widgets::{
+        Block, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph, StatefulWidget,
+        Widget, Wrap,
+    },
+};
 use std::io;
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::Stylize,
-    symbols::border,
-    text::{Line, Text},
-    widgets::{Block, Paragraph, Widget},
-    DefaultTerminal, Frame,
-};
-
 fn main() -> io::Result<()> {
-    let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
+    let terminal = ratatui::init();
+    let app_result = App::default().run(terminal);
     ratatui::restore();
     app_result
 }
 
-#[derive(Debug, Default)]
-pub struct App {
-    counter: i8,
-    exit: bool,
+struct App {
+    should_exit: bool,
+    theme_list: ThemeList,
+}
+
+struct ThemeList {
+    themes: Vec<Theme>,
+    state: ListState,
+}
+
+#[derive(Debug)]
+struct Theme {
+    name: String,
+    info: String,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            should_exit: false,
+            theme_list: ThemeList::from_iter([
+                (
+                    "Kanagawa",
+                    "Dark colorscheme inspired by the colors of the famous painting by Katsushika Hokusai.",
+                ),
+                ("Nord", "An arctic, north-bluish color palette."),
+            ]),
+        }
+    }
+}
+
+impl FromIterator<(&'static str, &'static str)> for ThemeList {
+    fn from_iter<I: IntoIterator<Item = (&'static str, &'static str)>>(iter: I) -> Self {
+        let items = iter
+            .into_iter()
+            .map(|(name, info)| Theme::new(name, info))
+            .collect();
+
+        Self {
+            themes: items,
+            state: ListState::default(),
+        }
+    }
+}
+
+impl Theme {
+    fn new(name: &str, info: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            info: info.to_string(),
+        }
+    }
 }
 
 impl App {
-    /// runs the application's main loop until the user quits
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        while !self.exit {
-            terminal.draw(|frame| self.draw(frame))?;
-            self.handle_events()?;
+    fn run(mut self, mut terminal: DefaultTerminal) -> io::Result<()> {
+        while !self.should_exit {
+            terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
+            if let Event::Key(key) = event::read()? {
+                self.handle_key(key);
+            };
         }
         Ok(())
     }
 
-    fn draw(&self, frame: &mut Frame) {
-        frame.render_widget(self, frame.area());
-    }
+    fn handle_key(&mut self, key: KeyEvent) {
+        if key.kind != KeyEventKind::Press {
+            return;
+        }
 
-    /// updates the application's state based on user input
-    fn handle_events(&mut self) -> io::Result<()> {
-        match event::read()? {
-            // it's important to check that the event is a key press event as
-            // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
-            }
-            _ => {}
-        };
-        Ok(())
-    }
-
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            KeyCode::Left => self.decrement_counter(),
-            KeyCode::Right => self.increment_counter(),
+        match key.code {
+            KeyCode::Char('q') | KeyCode::Esc => self.should_exit = true,
+            KeyCode::Char('j') | KeyCode::Down => self.select_next(),
+            KeyCode::Char('k') | KeyCode::Up => self.select_previous(),
+            KeyCode::Char('g') | KeyCode::Home => self.select_first(),
+            KeyCode::Char('G') | KeyCode::End => self.select_last(),
+            KeyCode::Enter => self.toggle_theme(),
             _ => {}
         }
     }
 
-    fn exit(&mut self) {
-        self.exit = true;
+    fn select_next(&mut self) {
+        self.theme_list.state.select_next();
     }
 
-    fn increment_counter(&mut self) {
-        self.counter += 1;
+    fn select_previous(&mut self) {
+        self.theme_list.state.select_previous();
     }
 
-    fn decrement_counter(&mut self) {
-        self.counter -= 1;
+    fn select_first(&mut self) {
+        self.theme_list.state.select_first();
+    }
+
+    fn select_last(&mut self) {
+        self.theme_list.state.select_last();
+    }
+
+    fn toggle_theme(&mut self) {
+        todo!()
     }
 }
 
-impl Widget for &App {
+impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(" Counter App Tutorial ".bold());
+        let title = Line::from(" Theme Picker ");
+
         let instructions = Line::from(vec![
-            " Decrement ".into(),
-            "<Left>".blue().bold(),
-            " Increment ".into(),
-            "<Right>".blue().bold(),
-            " Quit ".into(),
-            "<Q> ".blue().bold(),
+            " Use ".into(),
+            "g/G".blue().bold(),
+            " to go top/bottom, ".into(),
+            "enter".blue().bold(),
+            " to select, ".into(),
+            "q ".blue().bold(),
+            " to quit".into(),
         ]);
-        let block = Block::bordered()
+
+        let block = Block::new()
+            .borders(Borders::ALL)
             .title(title.centered())
-            .title_bottom(instructions.centered())
-            .border_set(border::THICK);
+            .title_bottom(instructions.centered());
+        let inner = block.inner(area);
 
-        let counter_text = Text::from(vec![Line::from(vec![
-            "Value: ".into(),
-            self.counter.to_string().yellow(),
-        ])]);
+        let [list_area, info_area] =
+            Layout::vertical([Constraint::Fill(1), Constraint::Max(5)]).areas(inner);
 
-        Paragraph::new(counter_text)
-            .centered()
+        self.render_list(list_area, buf);
+        self.render_info(info_area, buf);
+        block.render(area, buf);
+    }
+}
+
+impl App {
+    fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
+        let items: Vec<ListItem> = self
+            .theme_list
+            .themes
+            .iter()
+            .enumerate()
+            .map(|(_, theme)| ListItem::from(theme))
+            .collect();
+
+        let list = List::new(items)
+            .highlight_style(Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD))
+            .highlight_symbol(">")
+            .highlight_spacing(HighlightSpacing::Always);
+
+        // We need to disambiguate this trait method as both `Widget` and `StatefulWidget` share the
+        // same method name `render`.
+        StatefulWidget::render(list, area, buf, &mut self.theme_list.state);
+    }
+
+    fn render_info(&self, area: Rect, buf: &mut Buffer) {
+        let Some(index) = self.theme_list.state.selected() else {
+            return;
+        };
+
+        let info = format!("{}", self.theme_list.themes[index].info);
+        let block = Block::new().borders(Borders::ALL);
+
+        Paragraph::new(info)
+            .wrap(Wrap { trim: false })
             .block(block)
             .render(area, buf);
     }
 }
 
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-    use ratatui::style::Style;
-
-    #[test]
-    fn render() {
-        let app = App::default();
-        let mut buf = Buffer::empty(Rect::new(0, 0, 50, 4));
-
-        app.render(buf.area, &mut buf);
-
-        let mut expected = Buffer::with_lines(vec![
-            "┏━━━━━━━━━━━━━ Counter App Tutorial ━━━━━━━━━━━━━┓",
-            "┃                    Value: 0                    ┃",
-            "┃                                                ┃",
-            "┗━ Decrement <Left> Increment <Right> Quit <Q> ━━┛",
-        ]);
-        let title_style = Style::new().bold();
-        let counter_style = Style::new().yellow();
-        let key_style = Style::new().blue().bold();
-        expected.set_style(Rect::new(14, 0, 22, 1), title_style);
-        expected.set_style(Rect::new(28, 1, 1, 1), counter_style);
-        expected.set_style(Rect::new(13, 3, 6, 1), key_style);
-        expected.set_style(Rect::new(30, 3, 7, 1), key_style);
-        expected.set_style(Rect::new(43, 3, 4, 1), key_style);
-
-        assert_eq!(buf, expected);
-    }
-
-    #[test]
-    fn handle_key_event() -> io::Result<()> {
-        let mut app = App::default();
-        app.handle_key_event(KeyCode::Right.into());
-        assert_eq!(app.counter, 1);
-
-        app.handle_key_event(KeyCode::Left.into());
-        assert_eq!(app.counter, 0);
-
-        let mut app = App::default();
-        app.handle_key_event(KeyCode::Char('q').into());
-        assert!(app.exit);
-
-        Ok(())
+impl From<&Theme> for ListItem<'_> {
+    fn from(value: &Theme) -> Self {
+        ListItem::new(Line::from(value.name.to_string()))
     }
 }
