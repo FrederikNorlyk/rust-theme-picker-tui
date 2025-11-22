@@ -3,4 +3,4 @@ Terminal based theme picker written in Rust.
 
 ## Tech stack
 - Rust
-- Ratatui
+- [Ratatui](https://ratatui.rs)
