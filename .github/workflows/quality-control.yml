@@ -1,4 +1,4 @@
-name: Rust
+name: Quality Control
 
 on:
   pull_request:
