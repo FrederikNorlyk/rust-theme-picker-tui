@@ -1,10 +1,8 @@
-name: Rust
+name: Quality Control
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "*" ]
 
 env:
   CARGO_TERM_COLOR: always
