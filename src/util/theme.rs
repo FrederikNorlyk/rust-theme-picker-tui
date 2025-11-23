@@ -1,0 +1,94 @@
+use crate::Theme;
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+
+pub fn set_theme(theme: &Theme) {
+    let home = match env::var("HOME") {
+        Ok(h) => h,
+        Err(e) => {
+            eprintln!("Could not get home dir: {}", e);
+            return;
+        }
+    };
+
+    let config_path = PathBuf::from(home);
+    let theme_file_path = format!(
+        "{}/dotfiles/themes/{}/theme-variables.scss",
+        config_path.display(),
+        theme.dir_name
+    );
+
+    match fs::read_to_string(&theme_file_path) {
+        Ok(content) => match parse_scss_variables(&content) {
+            Ok(variables) => {
+                if let Err(e) = write_hypr_config(&variables) {
+                    eprintln!("Failed to write Hypr config: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to parse SCSS variables: {}", e);
+            }
+        },
+        Err(e) => {
+            eprintln!("Failed to read theme file '{}': {}", theme_file_path, e);
+        }
+    }
+}
+
+fn parse_scss_variables(content: &str) -> Result<Vec<(String, String)>, String> {
+    let mut variables = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+
+        // Skip comments and empty lines
+        if trimmed.is_empty() || trimmed.starts_with("//") {
+            continue;
+        }
+
+        // Match pattern: $variableName: value;
+        if let Some(dollar_pos) = trimmed.find('$') {
+            if let Some(colon_pos) = trimmed.find(':') {
+                if let Some(semicolon_pos) = trimmed.find(';') {
+                    let var_name = trimmed[dollar_pos + 1..colon_pos].trim().to_string();
+
+                    let var_value = trimmed[colon_pos + 1..semicolon_pos]
+                        .trim()
+                        .chars()
+                        .filter(|c| !c.is_whitespace())
+                        .collect::<String>();
+
+                    variables.push((var_name, var_value));
+                }
+            }
+        }
+    }
+
+    if variables.is_empty() {
+        return Err("No SCSS variables found".to_string());
+    }
+
+    Ok(variables)
+}
+
+fn write_hypr_config(variables: &[(String, String)]) -> Result<(), Box<dyn std::error::Error>> {
+    let home = env::var("HOME").map_err(|_| "HOME environment variable not set")?;
+    let config_path = PathBuf::from(home).join(".config/hypr/style-variables.conf");
+
+    let mut output = String::new();
+
+    for (name, value) in variables {
+        output.push_str(&format!("${} = {}\n", name, value));
+    }
+
+    fs::create_dir_all(config_path.parent().unwrap())?;
+    fs::write(&config_path, output)?;
+
+    println!(
+        "Successfully wrote Hypr config to: {}",
+        config_path.display()
+    );
+
+    Ok(())
+}

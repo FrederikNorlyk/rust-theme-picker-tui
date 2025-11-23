@@ -35,6 +35,7 @@ struct ThemeList {
 #[derive(Debug)]
 struct Theme {
     name: String,
+    dir_name: String,
     info: String,
 }
 
@@ -45,19 +46,22 @@ impl Default for App {
             theme_list: ThemeList::from_iter([
                 (
                     "Kanagawa",
+                    "kanagawa",
                     "Dark colorscheme inspired by the colors of the famous painting by Katsushika Hokusai.",
                 ),
-                ("Nord", "An arctic, north-bluish color palette."),
+                ("Nord", "nord", "An arctic, north-bluish color palette."),
             ]),
         }
     }
 }
 
-impl FromIterator<(&'static str, &'static str)> for ThemeList {
-    fn from_iter<I: IntoIterator<Item = (&'static str, &'static str)>>(iter: I) -> Self {
+impl FromIterator<(&'static str, &'static str, &'static str)> for ThemeList {
+    fn from_iter<I: IntoIterator<Item = (&'static str, &'static str, &'static str)>>(
+        iter: I,
+    ) -> Self {
         let items = iter
             .into_iter()
-            .map(|(name, info)| Theme::new(name, info))
+            .map(|(name, dir_name, info)| Theme::new(name, dir_name, info))
             .collect();
 
         Self {
@@ -68,9 +72,10 @@ impl FromIterator<(&'static str, &'static str)> for ThemeList {
 }
 
 impl Theme {
-    fn new(name: &str, info: &str) -> Self {
+    fn new(name: &str, dir_name: &str, info: &str) -> Self {
         Self {
             name: name.to_string(),
+            dir_name: dir_name.to_string(),
             info: info.to_string(),
         }
     }
