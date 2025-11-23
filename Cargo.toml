@@ -1,7 +1,21 @@
 [package]
 name = "theme-picker"
+description = "Terminal based theme picker"
+license = "MIT"
+repository = "https://github.com/FrederikNorlyk/rust-theme-picker-tui"
+keywords = ["theme", "tui"]
+categories = ["config"]
 version = "0.1.0"
 edition = "2024"
+
+[lints.clippy]
+all = "deny"           # Fail the build instead of warn
+pedantic = "deny"      # Pedantic lints also fail
+correctness = "deny"   # Correctness issues
+complexity = "deny"    # Overly complex code
+perf = "deny"          # Performance anti-patterns
+style = "deny"         # Style issues
+suspicious = "deny"    # Suspicious patterns
 
 [dependencies]
 crossterm = "0.29.0"

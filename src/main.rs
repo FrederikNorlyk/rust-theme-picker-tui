@@ -80,7 +80,7 @@ impl App {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             if let Event::Key(key) = event::read()? {
                 self.handle_key(key);
-            };
+            }
         }
         Ok(())
     }
@@ -153,13 +153,7 @@ impl Widget for &mut App {
 
 impl App {
     fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
-        let items: Vec<ListItem> = self
-            .theme_list
-            .themes
-            .iter()
-            .enumerate()
-            .map(|(_, theme)| ListItem::from(theme))
-            .collect();
+        let items: Vec<ListItem> = self.theme_list.themes.iter().map(ListItem::from).collect();
 
         let list = List::new(items)
             .highlight_style(Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD))
@@ -176,10 +170,10 @@ impl App {
             return;
         };
 
-        let info = format!("{}", self.theme_list.themes[index].info);
+        let info = &self.theme_list.themes[index].info;
         let block = Block::new().borders(Borders::ALL);
 
-        Paragraph::new(info)
+        Paragraph::new(info.as_str())
             .wrap(Wrap { trim: false })
             .block(block)
             .render(area, buf);
@@ -188,6 +182,6 @@ impl App {
 
 impl From<&Theme> for ListItem<'_> {
     fn from(value: &Theme) -> Self {
-        ListItem::new(Line::from(value.name.to_string()))
+        ListItem::new(Line::from(value.name.clone()))
     }
 }
