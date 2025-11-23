@@ -3,6 +3,15 @@ name = "theme-picker"
 version = "0.1.0"
 edition = "2024"
 
+[lints.clippy]
+all = "deny"           # Fail the build instead of warn
+pedantic = "deny"      # Pedantic lints also fail
+correctness = "deny"   # Correctness issues
+complexity = "deny"    # Overly complex code
+performance = "deny"   # Performance anti-patterns
+style = "deny"         # Style issues
+suspicious = "deny"    # Suspicious patterns
+
 [dependencies]
 crossterm = "0.29.0"
 ratatui = "0.29.0"
