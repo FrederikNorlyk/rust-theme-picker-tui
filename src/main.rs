@@ -1,3 +1,5 @@
+mod util;
+
 use ratatui::style::Color;
 use ratatui::{
     DefaultTerminal,
@@ -118,7 +120,11 @@ impl App {
     }
 
     fn toggle_theme(&mut self) {
-        todo!()
+        let Some(selected_theme) = self.get_selected_theme() else {
+            return;
+        };
+
+        util::theme::set_theme(selected_theme);
     }
 }
 
@@ -165,12 +171,18 @@ impl App {
         StatefulWidget::render(list, area, buf, &mut self.theme_list.state);
     }
 
+    fn get_selected_theme(&self) -> Option<&Theme> {
+        let index = self.theme_list.state.selected()?;
+
+        Some(&self.theme_list.themes[index])
+    }
+
     fn render_info(&self, area: Rect, buf: &mut Buffer) {
-        let Some(index) = self.theme_list.state.selected() else {
+        let Some(selected_theme) = self.get_selected_theme() else {
             return;
         };
 
-        let info = &self.theme_list.themes[index].info;
+        let info = &selected_theme.info;
         let block = Block::new().borders(Borders::ALL);
 
         Paragraph::new(info.as_str())

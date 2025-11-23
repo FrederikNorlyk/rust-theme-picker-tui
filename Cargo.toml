@@ -17,6 +17,10 @@ perf = "deny"          # Performance anti-patterns
 style = "deny"         # Style issues
 suspicious = "deny"    # Suspicious patterns
 
+[lints.rust]
+unsafe_code = "deny"
+unused = "deny"
+
 [dependencies]
 crossterm = "0.29.0"
 ratatui = "0.29.0"
