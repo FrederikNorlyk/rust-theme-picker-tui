@@ -5,7 +5,13 @@ Terminal-based theme picker written in Rust.
 ## Tech stack
 
 - Rust
-- [Ratatui](https://ratatui.rs)
+- [Ratatui: A Rust crate for cooking up Terminal User Interfaces](https://ratatui.rs)
+
+## Requirements
+
+To use the application you must have the following installed on your system:
+
+- [Sass: Syntactically Awesome Style Sheets](https://sass-lang.com/)
 
 ## Implementation
 
