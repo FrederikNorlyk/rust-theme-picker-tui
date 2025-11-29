@@ -9,9 +9,10 @@ Terminal-based theme picker written in Rust.
 
 ## Requirements
 
-To use the application you must have the following installed on your system:
+To use the application, you must have the following installed on your system:
 
 - [Sass: Syntactically Awesome Style Sheets](https://sass-lang.com/)
+- [hyprpaper: a fast, IPC-controlled wallpaper utility for Hyprland](https://wiki.hypr.land/Hypr-Ecosystem/hyprpaper/)
 
 ## Implementation
 
@@ -54,7 +55,7 @@ flowchart TD
     config_dir --> nord["`**nord/**`"]
     nord --> nord_theme["theme-variables.scss"]
     config_dir --> current["`**current/**`"]
-    current -.->|symlink| nord_theme
+    current -.->|symlink| nord
     nord_theme --> waybar_style_scss["waybar-style.scss"]
     waybar_style_scss --> waybar_style_css["style.css"]
     system_variables --> waybar_style_scss

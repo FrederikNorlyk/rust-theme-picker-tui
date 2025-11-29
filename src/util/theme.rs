@@ -1,4 +1,5 @@
 use crate::Theme;
+use rand::prelude::IndexedRandom;
 use regex::Regex;
 use std::env;
 use std::fmt::Write;
@@ -13,7 +14,8 @@ pub fn set_theme(theme: &Theme) -> Result<(), String> {
 
     let home_path = PathBuf::from(home);
     let root_path = home_path.join(".local/share/norlyk-themes");
-    let theme_file_path = root_path.join(&theme.dir_name).join("theme-variables.scss");
+    let theme_dir_path = root_path.join(&theme.dir_name);
+    let theme_file_path = theme_dir_path.join("theme-variables.scss");
 
     let variables = collect_variables(&theme_file_path)?;
 
@@ -21,29 +23,43 @@ pub fn set_theme(theme: &Theme) -> Result<(), String> {
         return Err(format!("Failed to write Hypr config: {e}"));
     }
 
-    reload_waybar(&theme_file_path)?;
+    reload_waybar(theme)?;
+    change_wallpaper()?;
 
     Ok(())
 }
 
-fn reload_waybar(theme_file_path: &Path) -> Result<(), String> {
+fn reload_waybar(theme: &Theme) -> Result<(), String> {
     let Ok(home) = env::var("HOME") else {
         return Err("Could not get home dir".to_string());
     };
 
     let home_path = PathBuf::from(home);
-    let current_theme_parent_path = &home_path.join(".local/share/norlyk-themes/current/");
-    let theme_waybar_style_path = home_path.join(".local/share/norlyk-themes/waybar-style.scss");
+    let root_path = home_path.join(".local/share/norlyk-themes");
+    let selected_theme_dir_path = &root_path.join(&theme.dir_name);
+    let current_theme_dir_path = &root_path.join("current");
+    let theme_waybar_style_path = root_path.join("waybar-style.scss");
     let actual_waybar_style_path = home_path.join(".config/waybar/style.css");
 
-    // Create parent directories if they don't exist
-    fs::create_dir_all(current_theme_parent_path)
-        .map_err(|e| format!("Failed to create directories: {e}"))?;
+    match fs::exists(current_theme_dir_path) {
+        Ok(does_exist) => {
+            if does_exist {
+                // The current theme dir is a symbolic link
+                fs::remove_file(current_theme_dir_path)
+                    .map_err(|e| format!("Failed to remove current theme dir: {e}"))?;
+            }
+        }
+        Err(e) => {
+            return Err(format!(
+                "Could not check existence of current theme dir: {e}"
+            ))?;
+        }
+    }
 
     Command::new("ln")
-        .arg("-sf")
-        .arg(theme_file_path)
-        .arg(current_theme_parent_path)
+        .arg("-s")
+        .arg(selected_theme_dir_path)
+        .arg(current_theme_dir_path)
         .output()
         .map_err(|e| format!("Failed to create symlink: {e}"))?;
 
@@ -146,4 +162,60 @@ fn write_hypr_config(
     fs::write(&config_path, output)?;
 
     Ok(())
+}
+
+fn change_wallpaper() -> Result<(), String> {
+    let Ok(home) = env::var("HOME") else {
+        return Err("Could not get home dir".to_string());
+    };
+
+    let home_path = PathBuf::from(home);
+    let root_path = home_path.join(".local/share/norlyk-themes");
+    let wallpaper_dir_path = root_path.join("current/wallpapers");
+    let wallpaper_path = get_random_file(&wallpaper_dir_path)?;
+
+    Command::new("hyprctl")
+        .arg("hyprpaper")
+        .arg("reload")
+        .arg(format!(",{}", wallpaper_path.display()))
+        .output()
+        .map_err(|e| format!("Failed to change wallpaper: {e}"))?;
+
+    Ok(())
+}
+
+fn get_random_file(path: &Path) -> Result<PathBuf, String> {
+    // Read all image files from the theme directory
+    let entries = fs::read_dir(path).map_err(|e| format!("Failed to read theme directory: {e}"))?;
+
+    let image_files: Vec<PathBuf> = entries
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+
+            // Check if it's a file with common image extensions
+            if path.is_file() {
+                if let Some(ext) = path.extension() {
+                    let ext_str = ext.to_string_lossy().to_lowercase();
+                    if matches!(ext_str.as_str(), "png" | "jpg" | "jpeg" | "webp") {
+                        // TODO: What are the supported formats from hyprpaper?
+                        return Some(path);
+                    }
+                }
+            }
+            None
+        })
+        .collect();
+
+    if image_files.is_empty() {
+        return Err("No image files found in theme directory".to_string());
+    }
+
+    // Select a random image
+    let mut rng = rand::rng();
+
+    image_files
+        .choose(&mut rng)
+        .cloned()
+        .ok_or_else(|| "Failed to select random image".to_string())
 }
