@@ -1,99 +1,124 @@
 use crate::Theme;
+use regex::Regex;
 use std::env;
+use std::fmt::Write;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
-pub fn set_theme(theme: &Theme) {
-    let home = match env::var("HOME") {
-        Ok(h) => h,
-        Err(e) => {
-            eprintln!("Could not get home dir: {}", e);
-            return;
-        }
+pub fn set_theme(theme: &Theme) -> Result<(), String> {
+    let Ok(home) = env::var("HOME") else {
+        return Err("Could not get home dir".to_string());
     };
 
-    let config_path = PathBuf::from(home);
+    let home_path = PathBuf::from(home);
+    let root_path = home_path.join(".local/share/norlyk-themes");
+    let theme_file_path = root_path.join(&theme.dir_name).join("theme-variables.scss");
 
-    let system_variables_path = format!(
-        "{}/dotfiles/themes/system-variables.scss", // TODO: Should follow scss `@use "../system-variables";` statements
-        config_path.display()
-    );
+    let variables = collect_variables(&theme_file_path)?;
 
-    let theme_file_path = format!(
-        "{}/dotfiles/themes/{}/theme-variables.scss",
-        config_path.display(),
-        theme.dir_name
-    );
-
-    let mut vars: Vec<(String, String)> = Vec::new();
-
-    match fs::read_to_string(&system_variables_path) {
-        Ok(content) => match parse_scss_variables(&content) {
-            Ok(variables) => {
-                vars.extend(variables);
-            }
-            Err(e) => {
-                eprintln!("Failed to parse SCSS variables: {}", e);
-                return;
-            }
-        },
-        Err(e) => {
-            eprintln!(
-                "Failed to read theme file '{}': {}",
-                system_variables_path, e
-            );
-            return;
-        }
+    if let Err(e) = write_hypr_config(&variables, &theme_file_path) {
+        return Err(format!("Failed to write Hypr config: {e}"));
     }
 
-    match fs::read_to_string(&theme_file_path) {
-        Ok(content) => match parse_scss_variables(&content) {
-            Ok(variables) => {
-                vars.extend(variables);
-            }
-            Err(e) => {
-                eprintln!("Failed to parse SCSS variables: {}", e);
-                return;
-            }
-        },
-        Err(e) => {
-            eprintln!("Failed to read theme file '{}': {}", theme_file_path, e);
-            return;
-        }
-    }
+    reload_waybar(&theme_file_path)?;
 
-    if let Err(e) = write_hypr_config(&vars, &theme_file_path) {
-        eprintln!("Failed to write Hypr config: {}", e);
-    }
+    Ok(())
 }
 
-fn parse_scss_variables(content: &str) -> Result<Vec<(String, String)>, String> {
-    let mut variables = Vec::new();
+fn reload_waybar(theme_file_path: &Path) -> Result<(), String> {
+    let Ok(home) = env::var("HOME") else {
+        return Err("Could not get home dir".to_string());
+    };
+
+    let home_path = PathBuf::from(home);
+    let current_theme_parent_path = &home_path.join(".local/share/norlyk-themes/current/");
+    let theme_waybar_style_path = home_path.join(".local/share/norlyk-themes/waybar-style.scss");
+    let actual_waybar_style_path = home_path.join(".config/waybar/style.css");
+
+    // Create parent directories if they don't exist
+    fs::create_dir_all(current_theme_parent_path)
+        .map_err(|e| format!("Failed to create directories: {e}"))?;
+
+    Command::new("ln")
+        .arg("-sf")
+        .arg(theme_file_path)
+        .arg(current_theme_parent_path)
+        .output()
+        .map_err(|e| format!("Failed to create symlink: {e}"))?;
+
+    Command::new("sass")
+        .arg("--no-source-map")
+        .arg(theme_waybar_style_path)
+        .arg(actual_waybar_style_path)
+        .output()
+        .map_err(|e| format!("Failed to compile .css file: {e}"))?;
+
+    Command::new("pkill")
+        .arg("waybar")
+        .output()
+        .map_err(|e| format!("Failed to stop waybar: {e}"))?;
+
+    Command::new("nohup")
+        .arg("waybar")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Failed to start waybar: {e}"))?;
+
+    Ok(())
+}
+
+fn collect_variables(path: &Path) -> Result<Vec<(String, String)>, String> {
+    let Ok(content) = fs::read_to_string(path) else {
+        return Err(format!("Could not read file: {}", path.display()));
+    };
+
+    let mut variables: Vec<(String, String)> = Vec::new();
+    let use_import_regex = Regex::new(r#"^@use "(:?.*)";$"#).unwrap();
 
     for line in content.lines() {
         let trimmed = line.trim();
 
-        // Skip comments and empty lines
-        if trimmed.is_empty() || trimmed.starts_with("//") {
+        if trimmed.starts_with("@use") {
+            let Some(relative_used_path) = use_import_regex
+                .captures(line)
+                .and_then(|caps| caps.get(1))
+                .map(|m| format!("{}.scss", m.as_str()))
+            else {
+                continue;
+            };
+
+            let parent = Path::new(path).parent().unwrap();
+            let absolute_used_path = parent.join(relative_used_path);
+
+            variables.extend(collect_variables(&absolute_used_path)?);
+
             continue;
         }
 
         // Match pattern: $variableName: value;
-        if let Some(dollar_pos) = trimmed.find('$') {
-            if let Some(colon_pos) = trimmed.find(':') {
-                if let Some(semicolon_pos) = trimmed.find(';') {
-                    let var_name = trimmed[dollar_pos + 1..colon_pos].trim().to_string();
+        let Some(dollar_pos) = trimmed.find('$') else {
+            continue;
+        };
 
-                    let var_value = trimmed[colon_pos + 1..semicolon_pos]
-                        .trim()
-                        .chars()
-                        .filter(|c| !c.is_whitespace())
-                        .collect::<String>();
+        let Some(colon_pos) = trimmed.find(':') else {
+            continue;
+        };
 
-                    variables.push((var_name, var_value));
-                }
-            }
-        }
+        let Some(semicolon_pos) = trimmed.find(';') else {
+            continue;
+        };
+
+        let var_name = trimmed[dollar_pos + 1..colon_pos].trim().to_string();
+
+        let var_value = trimmed[colon_pos + 1..semicolon_pos]
+            .trim()
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>();
+
+        variables.push((var_name, var_value));
     }
 
     if variables.is_empty() {
@@ -105,25 +130,20 @@ fn parse_scss_variables(content: &str) -> Result<Vec<(String, String)>, String> 
 
 fn write_hypr_config(
     variables: &[(String, String)],
-    theme_dir: &String,
+    theme_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let home = env::var("HOME").map_err(|_| "HOME environment variable not set")?;
     let config_path = PathBuf::from(home).join(".config/hypr/style-variables.conf");
 
     let mut output = String::new();
-    output.push_str(&format!("# Autogenerated from {}\n", theme_dir));
+    writeln!(output, "# Autogenerated from {}", theme_dir.display())?;
 
     for (name, value) in variables {
-        output.push_str(&format!("${} = {}\n", name, value));
+        writeln!(output, "${name} = {value}")?;
     }
 
     fs::create_dir_all(config_path.parent().unwrap())?;
     fs::write(&config_path, output)?;
-
-    println!(
-        "Successfully wrote Hypr config to: {}",
-        config_path.display()
-    );
 
     Ok(())
 }

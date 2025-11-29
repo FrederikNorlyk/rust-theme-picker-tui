@@ -44,12 +44,18 @@ impl Default for App {
         Self {
             should_exit: false,
             theme_list: ThemeList::from_iter([
+                // TODO: Scan the .local/share/norlyk-themes directory (add metadata file to each theme with descriptions, etc.)
                 (
                     "Kanagawa",
                     "kanagawa",
                     "Dark colorscheme inspired by the colors of the famous painting by Katsushika Hokusai.",
                 ),
                 ("Nord", "nord", "An arctic, north-bluish color palette."),
+                (
+                    "Gruvbox",
+                    "gruvbox",
+                    "A warm, retro color scheme with earthy tones designed for comfortable, long-term viewing.",
+                ),
             ]),
         }
     }
@@ -129,7 +135,9 @@ impl App {
             return;
         };
 
-        util::theme::set_theme(selected_theme);
+        if let Err(e) = util::theme::set_theme(selected_theme) {
+            eprintln!("Failed to set the theme: {}\n{}", selected_theme.name, e);
+        }
     }
 }
 
