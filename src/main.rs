@@ -1,5 +1,3 @@
-mod util;
-
 use ratatui::style::Color;
 use ratatui::{
     DefaultTerminal,
@@ -14,6 +12,7 @@ use ratatui::{
     },
 };
 use std::io;
+use theme_picker::models::theme::Theme;
 
 fn main() -> io::Result<()> {
     let terminal = ratatui::init();
@@ -30,13 +29,6 @@ struct App {
 struct ThemeList {
     themes: Vec<Theme>,
     state: ListState,
-}
-
-#[derive(Debug)]
-struct Theme {
-    name: String,
-    dir_name: String,
-    info: String,
 }
 
 impl Default for App {
@@ -73,16 +65,6 @@ impl FromIterator<(&'static str, &'static str, &'static str)> for ThemeList {
         Self {
             themes: items,
             state: ListState::default(),
-        }
-    }
-}
-
-impl Theme {
-    fn new(name: &str, dir_name: &str, info: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            dir_name: dir_name.to_string(),
-            info: info.to_string(),
         }
     }
 }
@@ -135,7 +117,7 @@ impl App {
             return;
         };
 
-        if let Err(e) = util::theme::set_theme(selected_theme) {
+        if let Err(e) = theme_picker::services::theme::set_theme(&selected_theme.dir_name) {
             eprintln!("Failed to set the theme: {}\n{}", selected_theme.name, e);
         }
     }
@@ -202,11 +184,5 @@ impl App {
             .wrap(Wrap { trim: false })
             .block(block)
             .render(area, buf);
-    }
-}
-
-impl From<&Theme> for ListItem<'_> {
-    fn from(value: &Theme) -> Self {
-        ListItem::new(Line::from(value.name.clone()))
     }
 }

@@ -1,4 +1,3 @@
-use crate::Theme;
 use rand::prelude::IndexedRandom;
 use regex::Regex;
 use std::env;
@@ -7,14 +6,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-pub fn set_theme(theme: &Theme) -> Result<(), String> {
+pub fn set_theme(theme_dir_name: &str) -> Result<(), String> {
     let Ok(home) = env::var("HOME") else {
         return Err("Could not get home dir".to_string());
     };
 
     let home_path = PathBuf::from(home);
     let root_path = home_path.join(".local/share/norlyk-themes");
-    let theme_dir_path = root_path.join(&theme.dir_name);
+    let theme_dir_path = root_path.join(theme_dir_name);
     let theme_file_path = theme_dir_path.join("theme-variables.scss");
 
     let variables = collect_variables(&theme_file_path)?;
@@ -23,20 +22,20 @@ pub fn set_theme(theme: &Theme) -> Result<(), String> {
         return Err(format!("Failed to write Hypr config: {e}"));
     }
 
-    reload_waybar(theme)?;
+    reload_waybar(theme_dir_name)?;
     change_wallpaper()?;
 
     Ok(())
 }
 
-fn reload_waybar(theme: &Theme) -> Result<(), String> {
+fn reload_waybar(theme_dir_name: &str) -> Result<(), String> {
     let Ok(home) = env::var("HOME") else {
         return Err("Could not get home dir".to_string());
     };
 
     let home_path = PathBuf::from(home);
     let root_path = home_path.join(".local/share/norlyk-themes");
-    let selected_theme_dir_path = &root_path.join(&theme.dir_name);
+    let selected_theme_dir_path = &root_path.join(theme_dir_name);
     let current_theme_dir_path = &root_path.join("current");
     let theme_waybar_style_path = root_path.join("waybar-style.scss");
     let actual_waybar_style_path = home_path.join(".config/waybar/style.css");
@@ -52,7 +51,7 @@ fn reload_waybar(theme: &Theme) -> Result<(), String> {
         Err(e) => {
             return Err(format!(
                 "Could not check existence of current theme dir: {e}"
-            ))?;
+            ));
         }
     }
 
@@ -164,7 +163,7 @@ fn write_hypr_config(
     Ok(())
 }
 
-fn change_wallpaper() -> Result<(), String> {
+pub fn change_wallpaper() -> Result<(), String> {
     let Ok(home) = env::var("HOME") else {
         return Err("Could not get home dir".to_string());
     };
