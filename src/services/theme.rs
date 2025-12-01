@@ -1,11 +1,24 @@
 use rand::prelude::IndexedRandom;
 use regex::Regex;
-use std::env;
 use std::fmt::Write;
 use std::fs;
+use std::io::Error;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::Duration;
+use std::{env, thread};
 
+/// Sets the theme by configuring Hypr, Waybar, and wallpaper settings.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The `HOME` environment variable is not set or inaccessible.
+/// - The theme directory or theme variables file cannot be found.
+/// - The SCSS variables cannot be parsed from the theme file.
+/// - Writing to the Hypr configuration fails.
+/// - Reloading Waybar fails (symlink creation, SASS compilation, or process restart).
+/// - Setting the wallpaper fails after multiple retry attempts.
 pub fn set_theme(theme_dir_name: &str) -> Result<(), String> {
     let Ok(home) = env::var("HOME") else {
         return Err("Could not get home dir".to_string());
@@ -163,6 +176,15 @@ fn write_hypr_config(
     Ok(())
 }
 
+/// Reloads the wallpaper by selecting a random image from the current theme's wallpaper directory
+/// and setting it using hyprpaper.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The `HOME` environment variable is not set or inaccessible.
+/// - The wallpaper directory cannot be read or contains no valid image files.
+/// - The hyprctl command fails to execute or returns an error after multiple retry attempts.
 pub fn change_wallpaper() -> Result<(), String> {
     let Ok(home) = env::var("HOME") else {
         return Err("Could not get home dir".to_string());
@@ -173,14 +195,36 @@ pub fn change_wallpaper() -> Result<(), String> {
     let wallpaper_dir_path = root_path.join("current/wallpapers");
     let wallpaper_path = get_random_file(&wallpaper_dir_path)?;
 
-    Command::new("hyprctl")
-        .arg("hyprpaper")
-        .arg("reload")
-        .arg(format!(",{}", wallpaper_path.display()))
-        .output()
-        .map_err(|e| format!("Failed to change wallpaper: {e}"))?;
+    let max_attempts = 5;
+    let mut error: Option<Error> = None;
 
-    Ok(())
+    for _ in 1..=max_attempts {
+        let output = Command::new("hyprctl")
+            .arg("hyprpaper")
+            .arg("reload")
+            .arg(format!(",{}", wallpaper_path.display()))
+            .output();
+
+        match output {
+            Ok(result) => {
+                let response = String::from_utf8_lossy(&result.stdout).trim().to_string();
+                if response == "ok" {
+                    return Ok(());
+                }
+
+                error = Some(Error::other(response));
+            }
+            Err(e) => error = Some(e),
+        }
+
+        thread::sleep(Duration::from_secs(1));
+    }
+
+    if let Some(error) = error {
+        return Err(format!("Failed to set wallpaper: {error}"));
+    }
+
+    Err("Unknown error".to_string())
 }
 
 fn get_random_file(path: &Path) -> Result<PathBuf, String> {
@@ -193,13 +237,12 @@ fn get_random_file(path: &Path) -> Result<PathBuf, String> {
             let path = entry.path();
 
             // Check if it's a file with common image extensions
-            if path.is_file() {
-                if let Some(ext) = path.extension() {
-                    let ext_str = ext.to_string_lossy().to_lowercase();
-                    if matches!(ext_str.as_str(), "png" | "jpg" | "jpeg" | "webp") {
-                        // TODO: What are the supported formats from hyprpaper?
-                        return Some(path);
-                    }
+            if path.is_file()
+                && let Some(ext) = path.extension()
+            {
+                let ext_str = ext.to_string_lossy().to_lowercase();
+                if matches!(ext_str.as_str(), "png" | "jpg" | "jpeg" | "bmp") {
+                    return Some(path);
                 }
             }
             None

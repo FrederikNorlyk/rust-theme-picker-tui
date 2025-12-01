@@ -28,12 +28,12 @@ fn main() {
 
     match args.command {
         Commands::Theme { name } => match theme_picker::services::theme::set_theme(&name) {
-            Ok(_) => println!("The theme was set successfully"),
+            Ok(()) => println!("The theme was set successfully"),
             Err(e) => eprintln!("Error setting theme: {e}"),
         },
         Commands::Wallpaper { action } => match action {
             WallpaperAction::Reload => match theme_picker::services::theme::change_wallpaper() {
-                Ok(_) => println!("The wallpaper was reloaded"),
+                Ok(()) => println!("The wallpaper was reloaded"),
                 Err(e) => eprintln!("Error reloading wallpaper: {e}"),
             },
         },

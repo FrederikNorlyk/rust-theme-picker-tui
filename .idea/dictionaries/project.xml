@@ -2,7 +2,9 @@
   <dictionary name="project">
     <words>
       <w>hypr</w>
+      <w>hyprctl</w>
       <w>hyprland</w>
+      <w>hyprpaper</w>
       <w>norlyk</w>
       <w>ratatui</w>
       <w>waybar</w>
