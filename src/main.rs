@@ -12,6 +12,7 @@ use ratatui::{
     },
 };
 use std::io;
+use theme_picker::models::theme::Theme;
 
 fn main() -> io::Result<()> {
     let terminal = ratatui::init();
@@ -30,46 +31,40 @@ struct ThemeList {
     state: ListState,
 }
 
-#[derive(Debug)]
-struct Theme {
-    name: String,
-    info: String,
-}
-
 impl Default for App {
     fn default() -> Self {
         Self {
             should_exit: false,
             theme_list: ThemeList::from_iter([
+                // TODO: Scan the .local/share/norlyk-themes directory (add metadata file to each theme with descriptions, etc.)
                 (
                     "Kanagawa",
+                    "kanagawa",
                     "Dark colorscheme inspired by the colors of the famous painting by Katsushika Hokusai.",
                 ),
-                ("Nord", "An arctic, north-bluish color palette."),
+                ("Nord", "nord", "An arctic, north-bluish color palette."),
+                (
+                    "Gruvbox",
+                    "gruvbox",
+                    "A warm, retro color scheme with earthy tones designed for comfortable, long-term viewing.",
+                ),
             ]),
         }
     }
 }
 
-impl FromIterator<(&'static str, &'static str)> for ThemeList {
-    fn from_iter<I: IntoIterator<Item = (&'static str, &'static str)>>(iter: I) -> Self {
+impl FromIterator<(&'static str, &'static str, &'static str)> for ThemeList {
+    fn from_iter<I: IntoIterator<Item = (&'static str, &'static str, &'static str)>>(
+        iter: I,
+    ) -> Self {
         let items = iter
             .into_iter()
-            .map(|(name, info)| Theme::new(name, info))
+            .map(|(name, dir_name, info)| Theme::new(name, dir_name, info))
             .collect();
 
         Self {
             themes: items,
             state: ListState::default(),
-        }
-    }
-}
-
-impl Theme {
-    fn new(name: &str, info: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            info: info.to_string(),
         }
     }
 }
@@ -118,7 +113,13 @@ impl App {
     }
 
     fn toggle_theme(&mut self) {
-        todo!()
+        let Some(selected_theme) = self.get_selected_theme() else {
+            return;
+        };
+
+        if let Err(e) = theme_picker::services::theme::set_theme(&selected_theme.dir_name) {
+            eprintln!("Failed to set the theme: {}\n{}", selected_theme.name, e);
+        }
     }
 }
 
@@ -165,23 +166,23 @@ impl App {
         StatefulWidget::render(list, area, buf, &mut self.theme_list.state);
     }
 
+    fn get_selected_theme(&self) -> Option<&Theme> {
+        let index = self.theme_list.state.selected()?;
+
+        Some(&self.theme_list.themes[index])
+    }
+
     fn render_info(&self, area: Rect, buf: &mut Buffer) {
-        let Some(index) = self.theme_list.state.selected() else {
+        let Some(selected_theme) = self.get_selected_theme() else {
             return;
         };
 
-        let info = &self.theme_list.themes[index].info;
+        let info = &selected_theme.info;
         let block = Block::new().borders(Borders::ALL);
 
         Paragraph::new(info.as_str())
             .wrap(Wrap { trim: false })
             .block(block)
             .render(area, buf);
-    }
-}
-
-impl From<&Theme> for ListItem<'_> {
-    fn from(value: &Theme) -> Self {
-        ListItem::new(Line::from(value.name.clone()))
     }
 }

@@ -8,6 +8,14 @@ categories = ["config"]
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "theme_picker"
+path = "src/main.rs"
+
+[[bin]]
+name = "norlyk"
+path = "src/bin/cli.rs"
+
 [lints.clippy]
 all = "deny"           # Fail the build instead of warn
 pedantic = "deny"      # Pedantic lints also fail
@@ -17,6 +25,13 @@ perf = "deny"          # Performance anti-patterns
 style = "deny"         # Style issues
 suspicious = "deny"    # Suspicious patterns
 
+[lints.rust]
+unsafe_code = "deny"
+unused = "deny"
+
 [dependencies]
 crossterm = "0.29.0"
 ratatui = "0.29.0"
+regex = "1.12.2"
+rand = "0.10.0-rc.5"
+clap = { version = "4.5.53", features = ["derive"] }
