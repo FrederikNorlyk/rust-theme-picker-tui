@@ -14,6 +14,21 @@ To use the application, you must have the following installed on your system:
 - [Sass: Syntactically Awesome Style Sheets](https://sass-lang.com/)
 - [hyprpaper: a fast, IPC-controlled wallpaper utility for Hyprland](https://wiki.hypr.land/Hypr-Ecosystem/hyprpaper/)
 
+## Installation
+
+### Quick Install
+```bash
+curl -sSL https://raw.githubusercontent.com/FrederikNorlyk/rust-theme-picker-tui/main/install.sh | bash
+```
+
+### Manual installation
+
+You must have rust development tools installed on your system.
+
+``` bash
+cargo install --git https://github.com/FrederikNorlyk/rust-theme-picker-tui
+```
+
 ## Implementation
 
 The themes are defined in `~/.local/share/norlyk-themes/`.
