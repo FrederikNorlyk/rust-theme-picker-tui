@@ -19,17 +19,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
       - name: Build Release
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release
 
       - name: Upload Binaries
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./target/${{ matrix.target }}/release/theme_picker${{ matrix.exe_suffix }}
-            ./target/${{ matrix.target }}/release/norlyk${{ matrix.exe_suffix }}
+            ./target/release/theme_picker
+            ./target/release/norlyk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
