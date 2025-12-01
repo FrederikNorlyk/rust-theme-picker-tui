@@ -51,7 +51,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./target/${{ matrix.target }}/release/theme_picker${{ matrix.exe_suffix }}
-            ./target/${{ matrix.target }}/release/norlyk${{ matrix.exe_suffix }}
+            ./target/${{ matrix.target }}/release/theme_picker${{ matrix.exe_suffix }}:theme_picker-${{ matrix.suffix }}${{ matrix.exe_suffix }}
+            ./target/${{ matrix.target }}/release/norlyk${{ matrix.exe_suffix }}:norlyk-${{ matrix.suffix }}${{ matrix.exe_suffix }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
