@@ -13,29 +13,7 @@ permissions:
 jobs:
   build-release:
     name: Build Release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            suffix: linux-x86_64
-            exe_suffix: ""
-
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            suffix: macos-x86_64
-            exe_suffix: ""
-
-          - os: macos-14
-            target: aarch64-apple-darwin
-            suffix: macos-aarch64
-            exe_suffix: ""
-
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            suffix: windows-x86_64
-            exe_suffix: .exe
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +29,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./target/${{ matrix.target }}/release/theme_picker${{ matrix.exe_suffix }}:theme_picker-${{ matrix.suffix }}${{ matrix.exe_suffix }}
-            ./target/${{ matrix.target }}/release/norlyk${{ matrix.exe_suffix }}:norlyk-${{ matrix.suffix }}${{ matrix.exe_suffix }}
+            ./target/${{ matrix.target }}/release/theme_picker${{ matrix.exe_suffix }}
+            ./target/${{ matrix.target }}/release/norlyk${{ matrix.exe_suffix }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
