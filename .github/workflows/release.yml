@@ -9,23 +9,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-    steps:
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-
   build-release:
     name: Build Release
     runs-on: ${{ matrix.os }}
@@ -63,15 +46,21 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Upload theme_picker Binary
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ./target/${{ matrix.target }}/release/theme_picker${{ matrix.exe_suffix }}
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./target/${{ matrix.target }}/release/theme_picker${{ matrix.exe_suffix }}
+          asset_name: theme_picker-${{ matrix.suffix }}${{ matrix.exe_suffix }}
+          asset_content_type: application/octet-stream
 
       - name: Upload norlyk Binary
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ./target/${{ matrix.target }}/release/norlyk${{ matrix.exe_suffix }}
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./target/${{ matrix.target }}/release/norlyk${{ matrix.exe_suffix }}
+          asset_name: norlyk-${{ matrix.suffix }}${{ matrix.exe_suffix }}
+          asset_content_type: application/octet-stream
