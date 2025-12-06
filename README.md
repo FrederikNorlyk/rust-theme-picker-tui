@@ -25,7 +25,7 @@ curl -sSL https://raw.githubusercontent.com/FrederikNorlyk/rust-theme-picker-tui
 
 ### Manual installation
 
-You must have rust development tools installed on your system.
+You must have Rust development tools installed on your system.
 
 ``` bash
 cargo install --git https://github.com/FrederikNorlyk/rust-theme-picker-tui
