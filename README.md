@@ -2,6 +2,8 @@
 
 Terminal-based theme picker written in Rust.
 
+<img src="screenshot.jpg" alt="Screenshot of the app">
+
 ## Tech stack
 
 - Rust
