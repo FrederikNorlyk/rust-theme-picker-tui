@@ -230,6 +230,8 @@ fn write_kitty_config(variables: &[(String, String)], theme_dir: &Path) -> Resul
 
     fs::write(theme_file_path, output)?;
 
+    Command::new("kitty").arg("@").arg("load-config").spawn()?;
+
     Ok(())
 }
 
