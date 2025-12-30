@@ -252,17 +252,19 @@ pub fn change_wallpaper() -> Result<(), String> {
     let max_attempts = 5;
     let mut error: Option<Error> = None;
 
+    let wallpaper_arg = format!(",{}", wallpaper_path.display());
+
     for _ in 1..=max_attempts {
         let output = Command::new("hyprctl")
             .arg("hyprpaper")
-            .arg("reload")
-            .arg(format!(",{}", wallpaper_path.display()))
+            .arg("wallpaper")
+            .arg(&wallpaper_arg)
             .output();
 
         match output {
             Ok(result) => {
                 let response = String::from_utf8_lossy(&result.stdout).trim().to_string();
-                if response == "ok" {
+                if response.is_empty() {
                     return Ok(());
                 }
 
