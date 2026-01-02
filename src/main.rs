@@ -13,6 +13,7 @@ use ratatui::{
 };
 use std::io;
 use theme_picker::models::theme::Theme;
+use theme_picker::services::theme_service::ThemeService;
 
 fn main() -> io::Result<()> {
     ratatui::run(|terminal| App::default().run(terminal))
@@ -54,13 +55,13 @@ impl FromIterator<(&'static str, &'static str, &'static str)> for ThemeList {
     fn from_iter<I: IntoIterator<Item = (&'static str, &'static str, &'static str)>>(
         iter: I,
     ) -> Self {
-        let items = iter
+        let themes = iter
             .into_iter()
             .map(|(name, dir_name, info)| Theme::new(name, dir_name, info))
             .collect();
 
         Self {
-            themes: items,
+            themes,
             state: ListState::default(),
         }
     }
@@ -114,7 +115,7 @@ impl App {
             return;
         };
 
-        if let Err(e) = theme_picker::services::theme::set_theme(&selected_theme.dir_name) {
+        if let Err(e) = ThemeService::set_theme(&selected_theme.dir_name) {
             eprintln!("Failed to set the theme: {}\n{}", selected_theme.name, e);
         }
     }

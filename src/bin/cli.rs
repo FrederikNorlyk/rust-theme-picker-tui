@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use theme_picker::services::theme_service::ThemeService;
 
 #[derive(Parser)]
 #[command(name = "norlyk", about = "Norlyk settings manager", version)]
@@ -27,12 +28,12 @@ fn main() {
     let args = Args::parse();
 
     match args.command {
-        Commands::Theme { name } => match theme_picker::services::theme::set_theme(&name) {
+        Commands::Theme { name } => match ThemeService::set_theme(&name) {
             Ok(()) => println!("The theme was set successfully"),
             Err(e) => eprintln!("Error setting theme: {e}"),
         },
         Commands::Wallpaper { action } => match action {
-            WallpaperAction::Reload => match theme_picker::services::theme::change_wallpaper() {
+            WallpaperAction::Reload => match ThemeService::change_wallpaper() {
                 Ok(()) => println!("The wallpaper was reloaded"),
                 Err(e) => eprintln!("Error reloading wallpaper: {e}"),
             },
