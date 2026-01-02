@@ -1,4 +1,5 @@
 use crate::models::hex_color::HexColor;
+use crate::utils::paths::Paths;
 use rand::prelude::IndexedRandom;
 use regex::Regex;
 use std::fmt::{Display, Formatter, Write};
@@ -6,8 +7,8 @@ use std::fs;
 use std::io::Error;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::thread;
 use std::time::Duration;
-use std::{env, thread};
 
 pub struct ThemeService;
 
@@ -31,25 +32,12 @@ impl ThemeService {
         Ok(())
     }
 
-    fn get_home_path() -> Result<PathBuf, String> {
-        let Ok(home) = env::var("HOME") else {
-            return Err("Could not get home dir".to_string());
-        };
-
-        Ok(PathBuf::from(home))
-    }
-
-    fn get_root_path() -> Result<PathBuf, String> {
-        let home_path = Self::get_home_path()?;
-        Ok(home_path.join(".local/share/norlyk-themes"))
-    }
-
     fn compile_theme(theme_dir_name: &str) -> Result<(), String> {
-        let root_path = &Self::get_root_path()?;
-        let theme_dir_path = root_path.join(theme_dir_name);
+        let config_path = Paths::get_config_path()?;
+        let theme_dir_path = config_path.join(theme_dir_name);
         let theme_file_path = &theme_dir_path.join("theme-variables.scss");
-        let selected_theme_dir_path = &root_path.join(theme_dir_name);
-        let current_theme_dir_path = &root_path.join("current");
+        let selected_theme_dir_path = &config_path.join(theme_dir_name);
+        let current_theme_dir_path = &config_path.join("current");
 
         let variables = &Self::collect_variables(theme_file_path)?;
 
@@ -87,9 +75,9 @@ impl ThemeService {
     }
 
     fn reload_waybar() -> Result<(), String> {
-        let home_path = Self::get_home_path()?;
-        let root_path = Self::get_root_path()?;
-        let theme_waybar_style_path = root_path.join("waybar-style.scss");
+        let home_path = Paths::get_home_path()?;
+        let config_path = Paths::get_config_path()?;
+        let theme_waybar_style_path = config_path.join("waybar-style.scss");
         let actual_waybar_style_path = home_path.join(".config/waybar/style.css");
 
         Command::new("sass")
@@ -177,7 +165,7 @@ impl ThemeService {
         variables: &[(String, String)],
         theme_dir: &Path,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let home_path = Self::get_home_path()?;
+        let home_path = Paths::get_home_path()?;
         let config_path = home_path.join(".config/hypr/style-variables.conf");
 
         let mut output = String::new();
@@ -197,7 +185,7 @@ impl ThemeService {
         variables: &[(String, String)],
         theme_dir: &Path,
     ) -> Result<(), ThemeError> {
-        let home_path = Self::get_home_path()?;
+        let home_path = Paths::get_home_path()?;
         let theme_file_path = &home_path.join(".config/kitty/theme.conf");
         let theme_template_file_path = &home_path.join(".config/kitty/theme-template.conf");
         let content = fs::read_to_string(theme_template_file_path)?;
@@ -251,14 +239,14 @@ impl ThemeService {
     /// - The wallpaper directory cannot be read or contains no valid image files.
     /// - The hyprctl command fails to execute or returns an error after multiple retry attempts.
     pub fn change_wallpaper() -> Result<(), String> {
-        let root_path = Self::get_root_path()?;
-        let wallpaper_dir_path = root_path.join("current/wallpapers");
-        let wallpaper_path = Self::get_random_file(&wallpaper_dir_path)?;
+        let config_path = Paths::get_config_path()?;
+        let wallpaper_dir_path = config_path.join("current/wallpapers");
+        let wallpaper_file_path = Self::get_random_image_file(&wallpaper_dir_path)?;
 
         let max_attempts = 5;
         let mut error: Option<Error> = None;
 
-        let wallpaper_arg = format!(",{}", wallpaper_path.display());
+        let wallpaper_arg = format!(",{}", wallpaper_file_path.display());
 
         for _ in 1..=max_attempts {
             let output = Command::new("hyprctl")
@@ -289,7 +277,7 @@ impl ThemeService {
         Err("Unknown error".to_string())
     }
 
-    fn get_random_file(path: &Path) -> Result<PathBuf, String> {
+    fn get_random_image_file(path: &Path) -> Result<PathBuf, String> {
         // Read all image files from the theme directory
         let entries =
             fs::read_dir(path).map_err(|e| format!("Failed to read theme directory: {e}"))?;
@@ -301,9 +289,9 @@ impl ThemeService {
 
                 // Check if it's a file with common image extensions
                 if path.is_file()
-                    && let Some(ext) = path.extension()
+                    && let Some(extension) = path.extension()
                 {
-                    let ext_str = ext.to_string_lossy().to_lowercase();
+                    let ext_str = extension.to_string_lossy().to_lowercase();
                     if matches!(ext_str.as_str(), "png" | "jpg" | "jpeg" | "bmp") {
                         return Some(path);
                     }
@@ -325,6 +313,7 @@ impl ThemeService {
             .ok_or_else(|| "Failed to select random image".to_string())
     }
 }
+
 #[derive(Debug)]
 enum ThemeError {
     Unknown(String),
@@ -353,6 +342,7 @@ impl From<std::fmt::Error> for ThemeError {
         ThemeError::Unknown(format!("{value}"))
     }
 }
+
 impl From<String> for ThemeError {
     fn from(value: String) -> Self {
         ThemeError::Unknown(value)
