@@ -15,10 +15,7 @@ use std::io;
 use theme_picker::models::theme::Theme;
 
 fn main() -> io::Result<()> {
-    let terminal = ratatui::init();
-    let app_result = App::default().run(terminal);
-    ratatui::restore();
-    app_result
+    ratatui::run(|terminal| App::default().run(terminal))
 }
 
 struct App {
@@ -70,7 +67,7 @@ impl FromIterator<(&'static str, &'static str, &'static str)> for ThemeList {
 }
 
 impl App {
-    fn run(mut self, mut terminal: DefaultTerminal) -> io::Result<()> {
+    fn run(mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while !self.should_exit {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             if let Event::Key(key) = event::read()? {
@@ -141,6 +138,7 @@ impl Widget for &mut App {
             .borders(Borders::ALL)
             .title(title.centered())
             .title_bottom(instructions.centered());
+
         let inner = block.inner(area);
 
         let [list_area, info_area] =
