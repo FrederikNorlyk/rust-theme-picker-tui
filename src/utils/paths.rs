@@ -4,7 +4,6 @@ use std::path::PathBuf;
 pub struct Paths;
 
 impl Paths {
-    ///
     /// Gets the path to the users home directory.
     ///
     /// # Errors
@@ -19,8 +18,8 @@ impl Paths {
         Ok(PathBuf::from(home))
     }
 
-    ///
-    /// Gets the path to the directory containing the theme picker's configuration files.
+    /// Gets the path to the directory containing the theme picker's configuration files, located at
+    /// `~/.local/share/norlyk-themes/`.
     ///
     /// # Errors
     ///

@@ -1,7 +1,9 @@
 use crate::models::hex_color::HexColor;
+use crate::models::theme::Theme;
 use crate::utils::paths::Paths;
 use rand::prelude::IndexedRandom;
 use regex::Regex;
+use serde::Deserialize;
 use std::fmt::{Display, Formatter, Write};
 use std::fs;
 use std::io::Error;
@@ -9,6 +11,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
+
+#[derive(Deserialize)]
+struct RawThemeMetadata {
+    name: String,
+    description: String,
+}
 
 pub struct ThemeService;
 
@@ -24,19 +32,53 @@ impl ThemeService {
     /// - Writing to the Hypr configuration fails.
     /// - Reloading Waybar fails (symlink creation, SASS compilation, or process restart).
     /// - Setting the wallpaper fails after multiple retry attempts.
-    pub fn set_theme(theme_dir_name: &str) -> Result<(), String> {
-        Self::compile_theme(theme_dir_name)?;
+    pub fn set_current_theme(theme_directory_path: &PathBuf) -> Result<(), String> {
+        Self::compile_theme(theme_directory_path)?;
         Self::reload_waybar()?;
         Self::change_wallpaper()?;
 
         Ok(())
     }
 
-    fn compile_theme(theme_dir_name: &str) -> Result<(), String> {
+    /// Get all available themes by reading the directory returned by [`Paths::get_config_path()`].
+    ///
+    /// # Errors
+    ///
+    /// The theme directory cannot be found.
+    ///
+    pub fn get_available_themes() -> Result<Vec<Theme>, String> {
+        let config_path = &Paths::get_config_path()?;
+
+        let files = fs::read_dir(config_path)
+            .map_err(|e| format!("Failed to read files in the config directory: {e}"))?;
+
+        let themes: Vec<Theme> = files
+            .filter_map(|file| {
+                let entry = file.ok()?;
+                let path = entry.path();
+
+                if !path.is_dir() || path.is_symlink() {
+                    return None;
+                }
+
+                let meta_file_path = path.join("meta.toml");
+                let contents = fs::read_to_string(meta_file_path).ok()?;
+                let meta: RawThemeMetadata = toml::from_str(&contents).ok()?;
+
+                Some(Theme::new(
+                    meta.name.as_str(),
+                    meta.description.as_str(),
+                    path,
+                ))
+            })
+            .collect();
+
+        Ok(themes)
+    }
+
+    fn compile_theme(theme_directory_path: &PathBuf) -> Result<(), String> {
         let config_path = Paths::get_config_path()?;
-        let theme_dir_path = config_path.join(theme_dir_name);
-        let theme_file_path = &theme_dir_path.join("theme-variables.scss");
-        let selected_theme_dir_path = &config_path.join(theme_dir_name);
+        let theme_file_path = &theme_directory_path.join("theme-variables.scss");
         let current_theme_dir_path = &config_path.join("current");
 
         let variables = &Self::collect_variables(theme_file_path)?;
@@ -66,7 +108,7 @@ impl ThemeService {
 
         Command::new("ln")
             .arg("-s")
-            .arg(selected_theme_dir_path)
+            .arg(theme_directory_path)
             .arg(current_theme_dir_path)
             .output()
             .map_err(|e| format!("Failed to create symlink: {e}"))?;
