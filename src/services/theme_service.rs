@@ -269,7 +269,14 @@ impl ThemeService {
 
         fs::write(theme_file_path, output)?;
 
-        Command::new("kitty").arg("@").arg("load-config").spawn()?;
+        Command::new("kitty")
+            .arg("@")
+            .arg("--no-response")
+            .arg("load-config")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?;
 
         Ok(())
     }
