@@ -21,21 +21,8 @@ fn main() -> io::Result<()> {
 
 struct App {
     should_exit: bool,
-    theme_list: ThemeList,
-}
-
-struct ThemeList {
     themes: Vec<Theme>,
     state: ListState,
-}
-
-impl ThemeList {
-    fn new(themes: Vec<Theme>) -> Self {
-        Self {
-            themes,
-            state: ListState::default(),
-        }
-    }
 }
 
 impl Default for App {
@@ -47,7 +34,8 @@ impl Default for App {
 
         Self {
             should_exit: false,
-            theme_list: ThemeList::new(themes),
+            themes,
+            state: ListState::default(),
         }
     }
 }
@@ -80,19 +68,19 @@ impl App {
     }
 
     fn select_next(&mut self) {
-        self.theme_list.state.select_next();
+        self.state.select_next();
     }
 
     fn select_previous(&mut self) {
-        self.theme_list.state.select_previous();
+        self.state.select_previous();
     }
 
     fn select_first(&mut self) {
-        self.theme_list.state.select_first();
+        self.state.select_first();
     }
 
     fn select_last(&mut self) {
-        self.theme_list.state.select_last();
+        self.state.select_last();
     }
 
     fn toggle_theme(&mut self) {
@@ -138,7 +126,7 @@ impl Widget for &mut App {
 
 impl App {
     fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
-        let items: Vec<ListItem> = self.theme_list.themes.iter().map(ListItem::from).collect();
+        let items: Vec<ListItem> = self.themes.iter().map(ListItem::from).collect();
 
         let list = List::new(items)
             .highlight_style(Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD))
@@ -147,13 +135,13 @@ impl App {
 
         // We need to disambiguate this trait method as both `Widget` and `StatefulWidget` share the
         // same method name `render`.
-        StatefulWidget::render(list, area, buf, &mut self.theme_list.state);
+        StatefulWidget::render(list, area, buf, &mut self.state);
     }
 
     fn get_selected_theme(&self) -> Option<&Theme> {
-        let index = self.theme_list.state.selected()?;
+        let index = self.state.selected()?;
 
-        Some(&self.theme_list.themes[index])
+        Some(&self.themes[index])
     }
 
     fn render_info(&self, area: Rect, buf: &mut Buffer) {
