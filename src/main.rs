@@ -42,8 +42,11 @@ impl Default for App {
 
 impl App {
     fn run(mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        self.select_first();
+
         while !self.should_exit {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
+
             if let Event::Key(key) = event::read()? {
                 self.handle_key(key);
             }
