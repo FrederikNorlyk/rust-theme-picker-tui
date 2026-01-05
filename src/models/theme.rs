@@ -1,20 +1,21 @@
 use ratatui::prelude::Line;
 use ratatui::widgets::ListItem;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct Theme {
     pub name: String,
-    pub dir_name: String,
-    pub info: String,
+    pub description: String,
+    pub directory_path: PathBuf,
 }
 
 impl Theme {
     #[must_use]
-    pub fn new(name: &str, dir_name: &str, info: &str) -> Self {
+    pub fn new(name: &str, description: &str, directory_path: PathBuf) -> Self {
         Self {
             name: name.to_string(),
-            dir_name: dir_name.to_string(),
-            info: info.to_string(),
+            description: description.to_string(),
+            directory_path,
         }
     }
 }

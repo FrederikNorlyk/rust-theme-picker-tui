@@ -29,40 +29,25 @@ struct ThemeList {
     state: ListState,
 }
 
-impl Default for App {
-    fn default() -> Self {
+impl ThemeList {
+    fn new(themes: Vec<Theme>) -> Self {
         Self {
-            should_exit: false,
-            theme_list: ThemeList::from_iter([
-                // TODO: Scan the .local/share/norlyk-themes directory (add metadata file to each theme with descriptions, etc.)
-                (
-                    "Kanagawa",
-                    "kanagawa",
-                    "Dark colorscheme inspired by the colors of the famous painting by Katsushika Hokusai.",
-                ),
-                ("Nord", "nord", "An arctic, north-bluish color palette."),
-                (
-                    "Gruvbox",
-                    "gruvbox",
-                    "A warm, retro color scheme with earthy tones designed for comfortable, long-term viewing.",
-                ),
-            ]),
+            themes,
+            state: ListState::default(),
         }
     }
 }
 
-impl FromIterator<(&'static str, &'static str, &'static str)> for ThemeList {
-    fn from_iter<I: IntoIterator<Item = (&'static str, &'static str, &'static str)>>(
-        iter: I,
-    ) -> Self {
-        let themes = iter
-            .into_iter()
-            .map(|(name, dir_name, info)| Theme::new(name, dir_name, info))
-            .collect();
+impl Default for App {
+    fn default() -> Self {
+        let themes = ThemeService::get_available_themes().unwrap_or_else(|e| {
+            eprintln!("Could not get themes: {e}");
+            Vec::new()
+        });
 
         Self {
-            themes,
-            state: ListState::default(),
+            should_exit: false,
+            theme_list: ThemeList::new(themes),
         }
     }
 }
@@ -115,7 +100,7 @@ impl App {
             return;
         };
 
-        if let Err(e) = ThemeService::set_theme(&selected_theme.dir_name) {
+        if let Err(e) = ThemeService::set_current_theme(&selected_theme.directory_path) {
             eprintln!("Failed to set the theme: {}\n{}", selected_theme.name, e);
         }
     }
@@ -176,7 +161,7 @@ impl App {
             return;
         };
 
-        let info = &selected_theme.info;
+        let info = &selected_theme.description;
         let block = Block::new().borders(Borders::ALL);
 
         Paragraph::new(info.as_str())
