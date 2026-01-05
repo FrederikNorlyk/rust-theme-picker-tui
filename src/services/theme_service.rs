@@ -138,6 +138,7 @@ impl ThemeService {
 
         Command::new("nohup")
             .arg("waybar")
+            .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
