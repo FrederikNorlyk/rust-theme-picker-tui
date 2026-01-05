@@ -52,7 +52,7 @@ impl ThemeService {
         let files = fs::read_dir(config_path)
             .map_err(|e| format!("Failed to read files in the config directory: {e}"))?;
 
-        let themes: Vec<Theme> = files
+        let mut themes: Vec<Theme> = files
             .filter_map(|file| {
                 let entry = file.ok()?;
                 let path = entry.path();
@@ -72,6 +72,8 @@ impl ThemeService {
                 ))
             })
             .collect();
+
+        themes.sort_by(|t1, t2| t1.name.cmp(&t2.name));
 
         Ok(themes)
     }
