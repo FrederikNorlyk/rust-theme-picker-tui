@@ -32,9 +32,9 @@ unused = "deny"
 [dependencies]
 crossterm = "0.29.0"
 ratatui = "0.30.0"
-regex = "1.12.2"
-rand = "0.10.0-rc.8"
-clap = { version = "4.5.56", features = ["derive"] }
+regex = "1.12.3"
+rand = "0.10.0-rc.9"
+clap = { version = "4.5.57", features = ["derive"] }
 easy_color = "0.1.13"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.9.11"
