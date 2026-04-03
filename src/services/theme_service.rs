@@ -16,6 +16,7 @@ use std::time::Duration;
 struct RawThemeMetadata {
     name: String,
     description: String,
+    btop_theme_path: Option<String>,
 }
 
 pub struct ThemeService;
@@ -69,6 +70,7 @@ impl ThemeService {
                     meta.name.as_str(),
                     meta.description.as_str(),
                     path,
+                    meta.btop_theme_path.map(PathBuf::from),
                 ))
             })
             .collect();
@@ -277,6 +279,46 @@ impl ThemeService {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()?;
+
+        Ok(())
+    }
+
+    pub fn set_btop_theme(theme_path: PathBuf) -> Result<(), String> {
+        let home_path = Paths::get_home_path()?;
+        let btop_conf_path = home_path.join(".config/btop/btop.conf");
+        let theme_line = format!(r#"color_theme = "{}""#, theme_path.display());
+
+        if btop_conf_path.exists() {
+            let Ok(content) = fs::read_to_string(&btop_conf_path) else {
+                return Err(format!("Could not read: {}", btop_conf_path.display()));
+            };
+
+            let color_theme_regex =
+                Regex::new(r#"(?m)^color_theme = ".*"$"#).map_err(|e| e.to_string())?;
+
+            let updated_content = if color_theme_regex.is_match(&content) {
+                color_theme_regex
+                    .replace_all(&content, theme_line.as_str())
+                    .to_string()
+            } else {
+                let mut content = content;
+                content.push('\n');
+                content.push_str(&theme_line);
+                content.push('\n');
+                content
+            };
+
+            fs::write(&btop_conf_path, updated_content)
+                .map_err(|e| format!("Could not write: {} ({e})", btop_conf_path.display()))?;
+        } else {
+            if let Some(parent) = btop_conf_path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Could not create config directory: {e}"))?;
+            }
+
+            fs::write(&btop_conf_path, format!("{theme_line}\n"))
+                .map_err(|e| format!("Could not write: {} ({e})", btop_conf_path.display()))?;
+        }
 
         Ok(())
     }

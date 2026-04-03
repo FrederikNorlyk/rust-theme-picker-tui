@@ -4,7 +4,7 @@ use std::path::PathBuf;
 pub struct Paths;
 
 impl Paths {
-    /// Gets the path to the users home directory.
+    /// Gets the path to the user's home directory.
     ///
     /// # Errors
     ///
