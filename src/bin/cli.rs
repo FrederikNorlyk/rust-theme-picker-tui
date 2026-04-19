@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
 use theme_picker::services::theme_service::ThemeService;
-use theme_picker::utils::paths::Paths;
 
 #[derive(Parser)]
 #[command(name = "norlyk", about = "Norlyk settings manager", version)]
@@ -30,17 +29,21 @@ fn main() {
 
     match args.command {
         Commands::Theme { name } => {
-            let config_path = match Paths::get_config_path() {
-                Ok(path) => path,
-                Err(e) => {
-                    eprintln!("Could not get config path: {e}");
-                    return;
+            let themes = ThemeService::get_available_themes().unwrap_or_else(|e| {
+                eprintln!("Could not get themes: {e}");
+                Vec::new()
+            });
+
+            let Some(theme) = themes.iter().find(|theme| theme.name.eq(&name)) else {
+                eprintln!("Could not get theme: {name}");
+                eprintln!("Available themes:");
+                for theme in themes {
+                    eprintln!(" - {}", theme.name);
                 }
+                return;
             };
 
-            let theme_directory_path = config_path.join(name);
-
-            match ThemeService::set_current_theme(&theme_directory_path) {
+            match ThemeService::set_current_theme(theme) {
                 Ok(()) => println!("The theme was set successfully"),
                 Err(e) => eprintln!("Error setting theme: {e}"),
             }

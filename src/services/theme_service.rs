@@ -33,10 +33,14 @@ impl ThemeService {
     /// - Writing to the Hypr configuration fails.
     /// - Reloading Waybar fails (symlink creation, SASS compilation, or process restart).
     /// - Setting the wallpaper fails after multiple retry attempts.
-    pub fn set_current_theme(theme_directory_path: &PathBuf) -> Result<(), String> {
-        Self::compile_theme(theme_directory_path)?;
+    pub fn set_current_theme(theme: &Theme) -> Result<(), String> {
+        Self::compile_theme(&theme.directory_path)?;
         Self::reload_waybar()?;
         Self::change_wallpaper()?;
+
+        if let Some(btop_theme_path) = theme.btop_theme_path.as_deref() {
+            Self::set_btop_theme(btop_theme_path)?;
+        }
 
         Ok(())
     }
@@ -283,7 +287,7 @@ impl ThemeService {
         Ok(())
     }
 
-    pub fn set_btop_theme(theme_path: PathBuf) -> Result<(), String> {
+    fn set_btop_theme(theme_path: &Path) -> Result<(), String> {
         let home_path = Paths::get_home_path()?;
         let btop_conf_path = home_path.join(".config/btop/btop.conf");
         let theme_line = format!(r#"color_theme = "{}""#, theme_path.display());

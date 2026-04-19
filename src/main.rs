@@ -91,7 +91,7 @@ impl App {
             return;
         };
 
-        if let Err(e) = ThemeService::set_current_theme(&selected_theme.directory_path) {
+        if let Err(e) = ThemeService::set_current_theme(selected_theme) {
             eprintln!("Failed to set the theme: {}\n{}", selected_theme.name, e);
         }
     }
