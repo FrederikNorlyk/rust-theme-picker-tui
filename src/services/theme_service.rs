@@ -1,5 +1,5 @@
 use crate::models::hex_color::HexColor;
-use crate::models::theme::Theme;
+use crate::models::theme::{ColorScheme, Theme};
 use crate::utils::paths::Paths;
 use rand::prelude::IndexedRandom;
 use regex::Regex;
@@ -17,6 +17,8 @@ struct RawThemeMetadata {
     name: String,
     description: String,
     btop_theme_path: Option<String>,
+    color_scheme: ColorScheme,
+    gtk_theme: String,
 }
 
 pub struct ThemeService;
@@ -37,10 +39,8 @@ impl ThemeService {
         Self::compile_theme(&theme.directory_path)?;
         Self::reload_waybar()?;
         Self::change_wallpaper()?;
-
-        if let Some(btop_theme_path) = theme.btop_theme_path.as_deref() {
-            Self::set_btop_theme(btop_theme_path)?;
-        }
+        Self::set_btop_theme(theme.btop_theme_path.as_deref())?;
+        Self::set_gtk_theme(theme)?;
 
         Ok(())
     }
@@ -75,6 +75,8 @@ impl ThemeService {
                     meta.description.as_str(),
                     path,
                     meta.btop_theme_path.map(PathBuf::from),
+                    meta.color_scheme,
+                    meta.gtk_theme.as_str(),
                 ))
             })
             .collect();
@@ -84,7 +86,7 @@ impl ThemeService {
         Ok(themes)
     }
 
-    fn compile_theme(theme_directory_path: &PathBuf) -> Result<(), String> {
+    fn compile_theme(theme_directory_path: &Path) -> Result<(), String> {
         let config_path = Paths::get_config_path()?;
         let theme_file_path = &theme_directory_path.join("theme-variables.scss");
         let current_theme_dir_path = &config_path.join("current");
@@ -99,19 +101,12 @@ impl ThemeService {
             return Err(format!("Failed to write kitty config: {e}"));
         }
 
-        match fs::exists(current_theme_dir_path) {
-            Ok(does_exist) => {
-                if does_exist {
-                    // The current theme dir is a symbolic link
-                    fs::remove_file(current_theme_dir_path)
-                        .map_err(|e| format!("Failed to remove current theme dir: {e}"))?;
-                }
-            }
-            Err(e) => {
-                return Err(format!(
-                    "Could not check existence of current theme dir: {e}"
-                ));
-            }
+        if fs::exists(current_theme_dir_path)
+            .map_err(|e| format!("Could not check existence of current theme dir: {e}"))?
+        {
+            // The current theme dir is a symbolic link, so we use fs::remove_file
+            fs::remove_file(current_theme_dir_path)
+                .map_err(|e| format!("Failed to remove current theme dir: {e}"))?;
         }
 
         Command::new("ln")
@@ -287,10 +282,16 @@ impl ThemeService {
         Ok(())
     }
 
-    fn set_btop_theme(theme_path: &Path) -> Result<(), String> {
+    fn set_btop_theme(theme_path: Option<&Path>) -> Result<(), String> {
         let home_path = Paths::get_home_path()?;
         let btop_conf_path = home_path.join(".config/btop/btop.conf");
-        let theme_line = format!(r#"color_theme = "{}""#, theme_path.display());
+
+        let color_theme = match theme_path {
+            Some(path) => path.display().to_string(),
+            None => String::from("Default"),
+        };
+
+        let theme_line = format!(r#"color_theme = "{color_theme}""#);
 
         if btop_conf_path.exists() {
             let Ok(content) = fs::read_to_string(&btop_conf_path) else {
@@ -323,6 +324,31 @@ impl ThemeService {
             fs::write(&btop_conf_path, format!("{theme_line}\n"))
                 .map_err(|e| format!("Could not write: {} ({e})", btop_conf_path.display()))?;
         }
+
+        Ok(())
+    }
+
+    fn set_gtk_theme(theme: &Theme) -> Result<(), String> {
+        let color_scheme: &str = match &theme.color_scheme {
+            ColorScheme::Light => "prefer-light",
+            ColorScheme::Dark => "prefer-dark",
+        };
+
+        Command::new("gsettings")
+            .arg("set")
+            .arg("org.gnome.desktop.interface")
+            .arg("color-scheme")
+            .arg(color_scheme)
+            .output()
+            .map_err(|e| format!("Failed to set GTK color scheme: {e}"))?;
+
+        Command::new("gsettings")
+            .arg("set")
+            .arg("org.gnome.desktop.interface")
+            .arg("gtk-theme")
+            .arg(&theme.gtk_theme)
+            .output()
+            .map_err(|e| format!("Failed to set GTK theme: {e}"))?;
 
         Ok(())
     }
