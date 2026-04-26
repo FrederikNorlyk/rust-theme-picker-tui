@@ -17,6 +17,7 @@ pub struct Theme {
     pub btop_theme_path: Option<PathBuf>,
     pub color_scheme: ColorScheme,
     pub gtk_theme: String,
+    pub nvim_colorscheme_path: Option<PathBuf>,
 }
 
 impl Theme {
@@ -28,6 +29,7 @@ impl Theme {
         btop_theme_path: Option<PathBuf>,
         color_scheme: ColorScheme,
         gtk_theme: &str,
+        nvim_colorscheme_path: Option<PathBuf>,
     ) -> Self {
         Self {
             name: name.to_string(),
@@ -36,7 +38,13 @@ impl Theme {
             btop_theme_path,
             color_scheme,
             gtk_theme: gtk_theme.to_string(),
+            nvim_colorscheme_path,
         }
+    }
+
+    #[must_use]
+    pub fn get_theme_variables_css_file_path(&self) -> PathBuf {
+        self.directory_path.join("theme-variables.scss")
     }
 }
 
