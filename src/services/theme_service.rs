@@ -3,9 +3,11 @@ use crate::services::themers::btop::BtopThemer;
 use crate::services::themers::gtk::GtkThemer;
 use crate::services::themers::hypr::HyprThemer;
 use crate::services::themers::kitty::KittyThemer;
+use crate::services::themers::nvim::NvimThemer;
 use crate::services::themers::waybar::WaybarThemer;
 use crate::services::themers::{ThemeContext, Themer};
 use crate::utils::paths::Paths;
+use crate::utils::symlink::Symlink;
 use rand::prelude::IndexedRandom;
 use regex::Regex;
 use serde::Deserialize;
@@ -23,7 +25,6 @@ struct RawThemeMetadata {
     btop_theme_path: Option<String>,
     color_scheme: ColorScheme,
     gtk_theme: String,
-    nvim_colorscheme_path: Option<String>,
 }
 
 pub struct ThemeService;
@@ -43,7 +44,7 @@ impl ThemeService {
         let context = Self::create_context(theme)
             .map_err(|e| format!("Could not create theme context: {e}"))?;
 
-        Self::create_current_theme_symlink(theme)?;
+        Symlink::create(&theme.directory_path, &Paths::current_theme()?)?;
 
         for themer in Self::themers() {
             themer
@@ -70,6 +71,7 @@ impl ThemeService {
             Box::new(WaybarThemer),
             Box::new(BtopThemer),
             Box::new(GtkThemer),
+            Box::new(NvimThemer),
         ]
     }
 
@@ -105,7 +107,6 @@ impl ThemeService {
                     meta.btop_theme_path.map(PathBuf::from),
                     meta.color_scheme,
                     meta.gtk_theme.as_str(),
-                    meta.nvim_colorscheme_path.map(PathBuf::from),
                 ))
             })
             .collect();
@@ -113,28 +114,6 @@ impl ThemeService {
         themes.sort_by(|t1, t2| t1.name.cmp(&t2.name));
 
         Ok(themes)
-    }
-
-    fn create_current_theme_symlink(theme: &Theme) -> Result<(), String> {
-        let config_path = Paths::config_path()?;
-        let current_theme_dir_path = &config_path.join("current");
-
-        if fs::exists(current_theme_dir_path)
-            .map_err(|e| format!("Could not check existence of current theme dir: {e}"))?
-        {
-            // The current theme dir is a symbolic link, so we use fs::remove_file
-            fs::remove_file(current_theme_dir_path)
-                .map_err(|e| format!("Failed to remove current theme dir: {e}"))?;
-        }
-
-        Command::new("ln")
-            .arg("-s")
-            .arg(&theme.directory_path)
-            .arg(current_theme_dir_path)
-            .output()
-            .map_err(|e| format!("Failed to create symlink: {e}"))?;
-
-        Ok(())
     }
 
     fn collect_variables(path: &Path) -> Result<Vec<(String, String)>, String> {
@@ -206,8 +185,7 @@ impl ThemeService {
     /// - The wallpaper directory cannot be read or contains no valid image files.
     /// - The hyprctl command fails to execute or returns an error after multiple retry attempts.
     pub fn change_wallpaper() -> Result<(), String> {
-        let config_path = Paths::config_path()?;
-        let wallpaper_dir_path = config_path.join("current/wallpapers");
+        let wallpaper_dir_path = Paths::current_theme()?.join("wallpapers");
         let wallpaper_file_path = Self::get_random_image_file(&wallpaper_dir_path)?;
 
         let max_attempts = 5;

@@ -29,4 +29,16 @@ impl Paths {
         let home_path = Self::user_home()?;
         Ok(home_path.join(".local/share/norlyk-themes"))
     }
+
+    /// Gets the path to the directory containing the currently selected theme.
+    /// `~/.local/share/norlyk-themes/current/`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the environment variable `HOME` is not set.
+    ///
+    pub fn current_theme() -> Result<PathBuf, String> {
+        let config_path = Self::config_path()?;
+        Ok(config_path.join("current"))
+    }
 }
