@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="CLI Set Theme" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+  <configuration default="false" name="CLI Set Theme Kanagawa" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="buildProfileId" value="dev" />
     <option name="command" value="run --package theme-picker --bin norlyk -- theme Kanagawa" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />

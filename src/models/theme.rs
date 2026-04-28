@@ -38,6 +38,11 @@ impl Theme {
             gtk_theme: gtk_theme.to_string(),
         }
     }
+
+    #[must_use]
+    pub fn get_theme_variables_css_file_path(&self) -> PathBuf {
+        self.directory_path.join("theme-variables.scss")
+    }
 }
 
 impl From<&Theme> for ListItem<'_> {

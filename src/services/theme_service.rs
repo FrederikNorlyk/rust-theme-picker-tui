@@ -1,14 +1,20 @@
-use crate::models::hex_color::HexColor;
 use crate::models::theme::{ColorScheme, Theme};
+use crate::services::themers::btop::BtopThemer;
+use crate::services::themers::gtk::GtkThemer;
+use crate::services::themers::hypr::HyprThemer;
+use crate::services::themers::kitty::KittyThemer;
+use crate::services::themers::nvim::NvimThemer;
+use crate::services::themers::waybar::WaybarThemer;
+use crate::services::themers::{ThemeContext, Themer};
 use crate::utils::paths::Paths;
+use crate::utils::symlink::Symlink;
 use rand::prelude::IndexedRandom;
 use regex::Regex;
 use serde::Deserialize;
-use std::fmt::{Display, Formatter, Write};
 use std::fs;
 use std::io::Error;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
@@ -32,27 +38,51 @@ impl ThemeService {
     /// - The `HOME` environment variable is not set or inaccessible.
     /// - The theme directory or theme variables file cannot be found.
     /// - The SCSS variables cannot be parsed from the theme file.
-    /// - Writing to the Hypr configuration fails.
-    /// - Reloading Waybar fails (symlink creation, SASS compilation, or process restart).
+    /// - Application of a theme to a program failed
     /// - Setting the wallpaper fails after multiple retry attempts.
     pub fn set_current_theme(theme: &Theme) -> Result<(), String> {
-        Self::compile_theme(&theme.directory_path)?;
-        Self::reload_waybar()?;
+        let context = Self::create_context(theme)
+            .map_err(|e| format!("Could not create theme context: {e}"))?;
+
+        Symlink::create(&theme.directory_path, &Paths::current_theme()?)?;
+
+        for themer in Self::themers() {
+            themer
+                .apply(&context)
+                .map_err(|e| format!("Could not apply theme: {e}"))?;
+        }
+
         Self::change_wallpaper()?;
-        Self::set_btop_theme(theme.btop_theme_path.as_deref())?;
-        Self::set_gtk_theme(theme)?;
 
         Ok(())
     }
 
-    /// Get all available themes by reading the directory returned by [`Paths::get_config_path()`].
+    fn create_context(theme: &Theme) -> Result<ThemeContext<'_>, String> {
+        let path = &theme.get_theme_variables_css_file_path();
+        let variables = Self::collect_variables(path)?;
+
+        Ok(ThemeContext { theme, variables })
+    }
+
+    fn themers() -> Vec<Box<dyn Themer>> {
+        vec![
+            Box::new(HyprThemer),
+            Box::new(KittyThemer),
+            Box::new(WaybarThemer),
+            Box::new(BtopThemer),
+            Box::new(GtkThemer),
+            Box::new(NvimThemer),
+        ]
+    }
+
+    /// Get all available themes by reading the directory returned by [`Paths::config_path()`].
     ///
     /// # Errors
     ///
     /// The theme directory cannot be found.
     ///
     pub fn get_available_themes() -> Result<Vec<Theme>, String> {
-        let config_path = &Paths::get_config_path()?;
+        let config_path = &Paths::config_path()?;
 
         let files = fs::read_dir(config_path)
             .map_err(|e| format!("Failed to read files in the config directory: {e}"))?;
@@ -84,68 +114,6 @@ impl ThemeService {
         themes.sort_by(|t1, t2| t1.name.cmp(&t2.name));
 
         Ok(themes)
-    }
-
-    fn compile_theme(theme_directory_path: &Path) -> Result<(), String> {
-        let config_path = Paths::get_config_path()?;
-        let theme_file_path = &theme_directory_path.join("theme-variables.scss");
-        let current_theme_dir_path = &config_path.join("current");
-
-        let variables = &Self::collect_variables(theme_file_path)?;
-
-        if let Err(e) = Self::write_hypr_config(variables, theme_file_path) {
-            return Err(format!("Failed to write Hypr config: {e}"));
-        }
-
-        if let Err(e) = Self::write_kitty_config(variables, theme_file_path) {
-            return Err(format!("Failed to write kitty config: {e}"));
-        }
-
-        if fs::exists(current_theme_dir_path)
-            .map_err(|e| format!("Could not check existence of current theme dir: {e}"))?
-        {
-            // The current theme dir is a symbolic link, so we use fs::remove_file
-            fs::remove_file(current_theme_dir_path)
-                .map_err(|e| format!("Failed to remove current theme dir: {e}"))?;
-        }
-
-        Command::new("ln")
-            .arg("-s")
-            .arg(theme_directory_path)
-            .arg(current_theme_dir_path)
-            .output()
-            .map_err(|e| format!("Failed to create symlink: {e}"))?;
-
-        Ok(())
-    }
-
-    fn reload_waybar() -> Result<(), String> {
-        let home_path = Paths::get_home_path()?;
-        let config_path = Paths::get_config_path()?;
-        let theme_waybar_style_path = config_path.join("waybar-style.scss");
-        let actual_waybar_style_path = home_path.join(".config/waybar/style.css");
-
-        Command::new("sass")
-            .arg("--no-source-map")
-            .arg(theme_waybar_style_path)
-            .arg(actual_waybar_style_path)
-            .output()
-            .map_err(|e| format!("Failed to compile .css file: {e}"))?;
-
-        Command::new("pkill")
-            .arg("waybar")
-            .output()
-            .map_err(|e| format!("Failed to stop waybar: {e}"))?;
-
-        Command::new("nohup")
-            .arg("waybar")
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| format!("Failed to start waybar: {e}"))?;
-
-        Ok(())
     }
 
     fn collect_variables(path: &Path) -> Result<Vec<(String, String)>, String> {
@@ -207,152 +175,6 @@ impl ThemeService {
         Ok(variables)
     }
 
-    fn write_hypr_config(
-        variables: &[(String, String)],
-        theme_dir: &Path,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let home_path = Paths::get_home_path()?;
-        let config_path = home_path.join(".config/hypr/style-variables.conf");
-
-        let mut output = String::new();
-        writeln!(output, "# Autogenerated from {}", theme_dir.display())?;
-
-        for (name, value) in variables {
-            writeln!(output, "${name} = {value}")?;
-        }
-
-        fs::create_dir_all(config_path.parent().unwrap())?;
-        fs::write(&config_path, output)?;
-
-        Ok(())
-    }
-
-    fn write_kitty_config(
-        variables: &[(String, String)],
-        theme_dir: &Path,
-    ) -> Result<(), ThemeError> {
-        let home_path = Paths::get_home_path()?;
-        let theme_file_path = &home_path.join(".config/kitty/theme.conf");
-        let theme_template_file_path = &home_path.join(".config/kitty/theme-template.conf");
-        let content = fs::read_to_string(theme_template_file_path)?;
-        let replacement_variable_regex = Regex::new(r"__(:?.*)__").unwrap();
-        let mut output = String::new();
-
-        writeln!(output, "# Autogenerated from {}", theme_dir.display())?;
-
-        for line in content.lines() {
-            let Some(captures) = replacement_variable_regex.captures(line) else {
-                writeln!(output, "{line}")?;
-                continue;
-            };
-
-            if captures.len() != 2 {
-                writeln!(output, "{line}")?;
-                continue;
-            }
-
-            let replacement_variable = captures[0].to_string();
-            let variable_name = captures[1].to_string();
-
-            let Some(variable) = variables.iter().find(|v| v.0 == variable_name) else {
-                writeln!(output, "{line}")?;
-                continue;
-            };
-
-            let variable_value = &variable.1;
-
-            let hex_color: HexColor = variable_value.try_into()?;
-            let hex_string: String = hex_color.into();
-            let new_line = line.replace(&replacement_variable, &hex_string);
-
-            writeln!(output, "{new_line}")?;
-        }
-
-        fs::write(theme_file_path, output)?;
-
-        Command::new("kitty")
-            .arg("@")
-            .arg("--no-response")
-            .arg("load-config")
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()?;
-
-        Ok(())
-    }
-
-    fn set_btop_theme(theme_path: Option<&Path>) -> Result<(), String> {
-        let home_path = Paths::get_home_path()?;
-        let btop_conf_path = home_path.join(".config/btop/btop.conf");
-
-        let color_theme = match theme_path {
-            Some(path) => path.display().to_string(),
-            None => String::from("Default"),
-        };
-
-        let theme_line = format!(r#"color_theme = "{color_theme}""#);
-
-        if btop_conf_path.exists() {
-            let Ok(content) = fs::read_to_string(&btop_conf_path) else {
-                return Err(format!("Could not read: {}", btop_conf_path.display()));
-            };
-
-            let color_theme_regex =
-                Regex::new(r#"(?m)^color_theme = ".*"$"#).map_err(|e| e.to_string())?;
-
-            let updated_content = if color_theme_regex.is_match(&content) {
-                color_theme_regex
-                    .replace_all(&content, theme_line.as_str())
-                    .to_string()
-            } else {
-                let mut content = content;
-                content.push('\n');
-                content.push_str(&theme_line);
-                content.push('\n');
-                content
-            };
-
-            fs::write(&btop_conf_path, updated_content)
-                .map_err(|e| format!("Could not write: {} ({e})", btop_conf_path.display()))?;
-        } else {
-            if let Some(parent) = btop_conf_path.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Could not create config directory: {e}"))?;
-            }
-
-            fs::write(&btop_conf_path, format!("{theme_line}\n"))
-                .map_err(|e| format!("Could not write: {} ({e})", btop_conf_path.display()))?;
-        }
-
-        Ok(())
-    }
-
-    fn set_gtk_theme(theme: &Theme) -> Result<(), String> {
-        let color_scheme: &str = match &theme.color_scheme {
-            ColorScheme::Light => "prefer-light",
-            ColorScheme::Dark => "prefer-dark",
-        };
-
-        Command::new("gsettings")
-            .arg("set")
-            .arg("org.gnome.desktop.interface")
-            .arg("color-scheme")
-            .arg(color_scheme)
-            .output()
-            .map_err(|e| format!("Failed to set GTK color scheme: {e}"))?;
-
-        Command::new("gsettings")
-            .arg("set")
-            .arg("org.gnome.desktop.interface")
-            .arg("gtk-theme")
-            .arg(&theme.gtk_theme)
-            .output()
-            .map_err(|e| format!("Failed to set GTK theme: {e}"))?;
-
-        Ok(())
-    }
-
     /// Reloads the wallpaper by selecting a random image from the current theme's wallpaper directory
     /// and setting it using hyprpaper.
     ///
@@ -363,8 +185,7 @@ impl ThemeService {
     /// - The wallpaper directory cannot be read or contains no valid image files.
     /// - The hyprctl command fails to execute or returns an error after multiple retry attempts.
     pub fn change_wallpaper() -> Result<(), String> {
-        let config_path = Paths::get_config_path()?;
-        let wallpaper_dir_path = config_path.join("current/wallpapers");
+        let wallpaper_dir_path = Paths::current_theme()?.join("wallpapers");
         let wallpaper_file_path = Self::get_random_image_file(&wallpaper_dir_path)?;
 
         let max_attempts = 5;
@@ -435,40 +256,5 @@ impl ThemeService {
             .choose(&mut rng)
             .cloned()
             .ok_or_else(|| "Failed to select random image".to_string())
-    }
-}
-
-#[derive(Debug)]
-enum ThemeError {
-    Unknown(String),
-    Io(Error),
-}
-
-impl Display for ThemeError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ThemeError::Unknown(message) => write!(f, "{message}"),
-            ThemeError::Io(e) => write!(f, "{e}"),
-        }
-    }
-}
-
-impl std::error::Error for ThemeError {}
-
-impl From<Error> for ThemeError {
-    fn from(value: Error) -> Self {
-        ThemeError::Io(value)
-    }
-}
-
-impl From<std::fmt::Error> for ThemeError {
-    fn from(value: std::fmt::Error) -> Self {
-        ThemeError::Unknown(format!("{value}"))
-    }
-}
-
-impl From<String> for ThemeError {
-    fn from(value: String) -> Self {
-        ThemeError::Unknown(value)
     }
 }

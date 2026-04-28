@@ -10,7 +10,7 @@ impl Paths {
     ///
     /// Returns an error if the environment variable `HOME` is not set.
     ///
-    pub fn get_home_path() -> Result<PathBuf, String> {
+    pub fn user_home() -> Result<PathBuf, String> {
         let Ok(home) = env::var("HOME") else {
             return Err("Could not get home dir".to_string());
         };
@@ -25,8 +25,20 @@ impl Paths {
     ///
     /// Returns an error if the environment variable `HOME` is not set.
     ///
-    pub fn get_config_path() -> Result<PathBuf, String> {
-        let home_path = Self::get_home_path()?;
+    pub fn config_path() -> Result<PathBuf, String> {
+        let home_path = Self::user_home()?;
         Ok(home_path.join(".local/share/norlyk-themes"))
+    }
+
+    /// Gets the path to the directory containing the currently selected theme.
+    /// `~/.local/share/norlyk-themes/current/`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the environment variable `HOME` is not set.
+    ///
+    pub fn current_theme() -> Result<PathBuf, String> {
+        let config_path = Self::config_path()?;
+        Ok(config_path.join("current"))
     }
 }
